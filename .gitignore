@@ -158,3 +158,11 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+ERNIE-Pytorch/models
+utc_paddle/models
+utc_paddle/data
+utc_paddle/checkpoint
+utc_pytorch/data
+utc_pytorch/models
+utc_pytorch/logs
