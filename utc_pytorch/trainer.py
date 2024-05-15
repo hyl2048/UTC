@@ -142,6 +142,9 @@ class Trainer:
     def eval(self, val_loader: DataLoader):
         torch.set_grad_enabled(False)
         test_loss = self.fabric.to_device(MeanMetric())
+        import pdb
+
+        pdb.set_trace()
         for i, batch in enumerate(val_loader):
             output = self.forward(batch)
             output = apply_to_collection(output, torch.Tensor, lambda x: x.detach())
@@ -153,10 +156,9 @@ class Trainer:
                 output["labels"] = batch["labels"]
 
             self.test_metrics.update(output["option_logits"], output["labels"])
-            import pdb
 
-            pdb.set_trace()
         self.log_info(test_loss, self.test_metrics, "eval")
+
         torch.set_grad_enabled(True)
 
     def fit(

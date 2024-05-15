@@ -13,7 +13,7 @@ import torch
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
 
-from utc_pytorch.log import logger
+from log import logger
 
 
 class MLMTokenizerWrap(object):
