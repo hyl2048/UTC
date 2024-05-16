@@ -18,16 +18,13 @@ import paddle
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
-from paddlenlp.prompt import (
-    PromptModelForSequenceClassification,
-    PromptTrainer,
-    PromptTuningArguments,
-    UTCTemplate,
-)
+from paddlenlp.prompt import (PromptModelForSequenceClassification,
+                              PromptTrainer, PromptTuningArguments,
+                              UTCTemplate)
 from paddlenlp.trainer import PdArgumentParser
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
 from sklearn.metrics import f1_score
-from utils import UTCLoss, read_local_dataset
+from utils import HLCLoss, UTCLoss, read_local_dataset
 
 
 @dataclass
@@ -130,7 +127,7 @@ def main():
         preds = preds[labels != -100].numpy()
         labels = labels[labels != -100].numpy()
         preds = preds > data_args.threshold
- 
+
         micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
         macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")
 

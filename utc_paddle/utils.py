@@ -83,4 +83,36 @@ class UTCLoss(object):
         neg_loss = paddle.logsumexp(logit_neg, axis=-1)
         pos_loss = paddle.logsumexp(logit_pos, axis=-1)
         loss = (neg_loss + pos_loss).mean()
+
+        return loss
+
+
+class HLCLoss(object):
+    """
+    TODO 需要修改,
+    HLC: hierarchically-aware label correlation for hierarchical text classification
+    """
+
+    def __call__(self, logit, label):
+        return self.forward(logit, label)
+
+    def forward(self, logit, label):
+
+        sigmoid = paddle.nn.Sigmoid()
+        bce_loss = paddle.nn.BCELoss()
+        loss_bce = bce_loss(sigmoid(logit), label)
+
+        logit = (1.0 - 2.0 * label) * logit
+        logit_neg = logit - label * 1e12
+        logit_pos = logit - (1.0 - label) * 1e12
+        zeros = paddle.zeros_like(logit[..., :1])
+        logit_neg = paddle.concat([logit_neg, zeros], axis=-1)
+        logit_pos = paddle.concat([logit_pos, zeros], axis=-1)
+        label = paddle.concat([label, zeros], axis=-1)
+        logit_neg[label == -100] = -1e12
+        logit_pos[label == -100] = -1e12
+        neg_loss = paddle.logsumexp(logit_neg, axis=-1)
+        pos_loss = paddle.logsumexp(logit_pos, axis=-1)
+        loss_ceal = (neg_loss + pos_loss).mean()
+        loss = loss_bce + loss_ceal
         return loss

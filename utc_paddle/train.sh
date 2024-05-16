@@ -3,7 +3,7 @@
 python run_train.py  \
     --device gpu \
     --logging_steps 10 \
-    --save_steps 100 \
+    --save_steps 500 \
     --eval_steps 10 \
     --seed 42 \
     --model_name_or_path models/utc-base \

@@ -57,6 +57,7 @@ class Trainer:
 
     def forward(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         # input_ids, token_type_ids, position_ids, attention_mask, omask_positions, cls_positions, labels = batch
+
         output = self.model(**batch)
         # output.update({'labels': batch['labels']})
         return output
@@ -142,9 +143,7 @@ class Trainer:
     def eval(self, val_loader: DataLoader):
         torch.set_grad_enabled(False)
         test_loss = self.fabric.to_device(MeanMetric())
-        import pdb
 
-        pdb.set_trace()
         for i, batch in enumerate(val_loader):
             output = self.forward(batch)
             output = apply_to_collection(output, torch.Tensor, lambda x: x.detach())

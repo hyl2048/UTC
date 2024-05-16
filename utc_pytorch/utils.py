@@ -10,10 +10,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import torch
+from log import logger
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
-
-from log import logger
 
 
 class MLMTokenizerWrap(object):
