@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 
 import paddle
+import paddlenlp
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
@@ -22,9 +23,12 @@ from paddlenlp.prompt import (PromptModelForSequenceClassification,
                               PromptTrainer, PromptTuningArguments,
                               UTCTemplate)
 from paddlenlp.trainer import PdArgumentParser
+from paddlenlp.trainer.integrations import VisualDLCallback
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
 from sklearn.metrics import f1_score
 from utils import HLCLoss, UTCLoss, read_local_dataset
+from visualdl import LogWriter
+from visualdl.server import app
 
 
 @dataclass
@@ -68,6 +72,18 @@ class ModelArguments:
 
 
 def main():
+
+    app.run(
+        logdir="./runs/utc_experiment",
+        model="./runs/utc_experiment/model",
+        host="127.0.0.1",
+        port=6006,
+        cache_timeout=20,
+        language=None,
+        public_path=None,
+        api_only=False,
+        open_browser=False,
+    )
     # Parse the arguments.
     parser = PdArgumentParser((ModelArguments, DataArguments, PromptTuningArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
@@ -78,6 +94,26 @@ def main():
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     model = UTC.from_pretrained(model_args.model_name_or_path)
+
+    input_ids = paddle.cast(paddle.rand([8, 200]), "int64")
+    token_type_ids = paddle.cast(paddle.rand([8, 200]), "int64")
+    position_ids = paddle.cast(paddle.rand([8, 200]), "int64")
+    attention_mask = paddle.cast(paddle.rand([8, 1, 200, 200]), "int64")
+    omask_positions = paddle.cast(paddle.rand([8, 200]), "int64")
+    cls_positions = paddle.cast(paddle.rand([8]), "int64")
+
+    paddle.jit.save(
+        model,
+        path="./runs/utc_experiment/model",
+        input_spec=[
+            input_ids,
+            token_type_ids,
+            position_ids,
+            attention_mask,
+            omask_positions,
+            cls_positions,
+        ],
+    )
 
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
@@ -133,6 +169,9 @@ def main():
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
+    log_writer = LogWriter(logdir="./runs/utc_experiment")
+    VisualDLCb = VisualDLCallback(vdl_writer=log_writer)
+
     trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
@@ -140,7 +179,7 @@ def main():
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        callbacks=None,
+        callbacks=[VisualDLCb],
         compute_metrics=(
             compute_metrics_single_label if data_args.single_label else compute_metrics
         ),

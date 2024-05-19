@@ -162,6 +162,7 @@ cython_debug/
 ERNIE-Pytorch/models
 utc_paddle/models
 utc_paddle/data
+utc_paddle/runs
 utc_paddle/checkpoint
 utc_pytorch/data
 utc_pytorch/models
