@@ -15,17 +15,54 @@
 from dataclasses import dataclass, field
 
 import paddle
+import paddle.optimizer
 import paddlenlp
 import ray
+import wandb
 from paddle.metric import Accuracy
+from paddle.optimizer import (
+    LBFGS,
+    SGD,
+    Adadelta,
+    Adagrad,
+    Adamax,
+    AdamW,
+    Lamb,
+    Momentum,
+    RMSProp,
+    adam,
+)
+from paddle.optimizer.lr import (
+    CosineAnnealingDecay,
+    CyclicLR,
+    ExponentialDecay,
+    InverseTimeDecay,
+    LambdaDecay,
+    LinearWarmup,
+    MultiplicativeDecay,
+    MultiStepDecay,
+    NaturalExpDecay,
+    NoamDecay,
+    OneCycleLR,
+    PiecewiseDecay,
+    PolynomialDecay,
+    ReduceOnPlateau,
+    StepDecay,
+)
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
-from paddlenlp.prompt import (PromptModelForSequenceClassification,
-                              PromptTrainer, PromptTuningArguments,
-                              UTCTemplate)
+from paddlenlp.prompt import (
+    PromptModelForSequenceClassification,
+    PromptTrainer,
+    PromptTuningArguments,
+    UTCTemplate,
+)
 from paddlenlp.trainer import PdArgumentParser
-from paddlenlp.trainer.integrations import (AutoNLPCallback, TrainerCallback,
-                                            VisualDLCallback)
+from paddlenlp.trainer.integrations import (
+    AutoNLPCallback,
+    TrainerCallback,
+    VisualDLCallback,
+)
 from paddlenlp.trainer.trainer_callback import TrainerControl, TrainerState
 from paddlenlp.trainer.training_args import TrainingArguments
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
@@ -37,8 +74,6 @@ from sklearn.metrics import f1_score
 from utils import HLCLoss, UTCLoss, read_local_dataset
 from visualdl import LogWriter
 from visualdl.server import app
-
-import wandb
 
 
 class InspectStateCallback(TrainerCallback):
@@ -169,6 +204,11 @@ def train_function(config):
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
+    if config["optimizer"] == "AdamW":
+        optimizer = AdamW(learning_rate=config["lr"])
+    if config["scheduler"] == "LinearWarmup":
+        scheduler = LinearWarmup
+
     trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
@@ -180,6 +220,7 @@ def train_function(config):
         compute_metrics=(
             compute_metrics_single_label if data_args.single_label else compute_metrics
         ),
+        optimizers=(optimizer, scheduler),
     )
 
     # Training.
@@ -241,20 +282,19 @@ def tune_with_callback():
 
     search_space = {
         "per_device_train_batch_size": 8,
-        "optim":"adamw",
+        "optim": "AdamW",
+        "scheduler": "LinearWarmup",
         "num_train_epochs": 20,
-        "learning_rate": 1e-5,
-  
-        }
-    
+        "lr": tune.uniform(1e-5, 5e-4),
+    }
+
     train_config = constant_config.update(search_space)
-    
-    search_algorithm = BayesOptSearch()
-    
+
+    search_algorithm = BayesOptSearch(metric="loss", mode="min")
+
     tuner = tune.run(
         train_function,
-        resources_per_trial={"cpu": 1, "gpu": 1},
- 
+        resources_per_trial={"cpu": 5, "gpu": 1},
         callbacks=[WandbLoggerCallback(project="Wandb_example_two")],
         config=train_config,
         search_alg=search_algorithm,
