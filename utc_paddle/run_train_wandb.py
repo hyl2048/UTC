@@ -20,18 +20,12 @@ import ray
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
-from paddlenlp.prompt import (
-    PromptModelForSequenceClassification,
-    PromptTrainer,
-    PromptTuningArguments,
-    UTCTemplate,
-)
+from paddlenlp.prompt import (PromptModelForSequenceClassification,
+                              PromptTrainer, PromptTuningArguments,
+                              UTCTemplate)
 from paddlenlp.trainer import PdArgumentParser
-from paddlenlp.trainer.integrations import (
-    AutoNLPCallback,
-    TrainerCallback,
-    VisualDLCallback,
-)
+from paddlenlp.trainer.integrations import (AutoNLPCallback, TrainerCallback,
+                                            VisualDLCallback)
 from paddlenlp.trainer.trainer_callback import TrainerControl, TrainerState
 from paddlenlp.trainer.training_args import TrainingArguments
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
@@ -222,38 +216,51 @@ def train_function(config):
 
 def tune_with_callback():
     """使用callback"""
+    constant_config = {
+        "device": "gpu",
+        "logging_steps": 1,
+        "save_steps": 500,
+        "eval_steps": 1,
+        "model_name_or_path": "models/utc-base",
+        "output_dir": "./checkpoint/model_best",
+        "dataset_path": "data/cail_mul_label_mul_classify",
+        "max_seq_length": 512,
+        "per_device_eval_batch_size": 8,
+        "export_model_dir": "./checkpoint/model_best",
+        "disable_tqdm": True,
+        "metric_for_best_model": "macro_f1",
+        "load_best_model_at_end": True,
+        "save_total_limit": 1,
+        "evaluation_strategy": "steps",
+        "save_strategy": "steps",
+        "do_train": True,
+        "do_export": True,
+        "seed": 42,
+        "gradient_accumulation_steps": 1,
+    }
+
+    search_space = {
+        "per_device_train_batch_size": 8,
+        "optim":"adamw",
+        "num_train_epochs": 20,
+        "learning_rate": 1e-5,
+  
+        }
+    
+    train_config = constant_config.update(search_space)
+    
+    search_algorithm = BayesOptSearch()
+    
     tuner = tune.run(
         train_function,
         resources_per_trial={"cpu": 1, "gpu": 1},
+ 
+        callbacks=[WandbLoggerCallback(project="Wandb_example_two")],
+        config=train_config,
+        search_alg=search_algorithm,
         scheduler=ASHAScheduler(
             metric="loss", mode="min", max_t=4380, grace_period=1, reduction_factor=2
         ),
-        callbacks=[WandbLoggerCallback(project="Wandb_example_two")],
-        config={
-            "device": "gpu",
-            "logging_steps": 1,
-            "save_steps": 500,
-            "eval_steps": 1,
-            "seed": 42,
-            "model_name_or_path": "models/utc-base",
-            "output_dir": "./checkpoint/model_best",
-            "dataset_path": "data/cail_mul_label_mul_classify",
-            "max_seq_length": 512,
-            "per_device_train_batch_size": 8,
-            "per_device_eval_batch_size": 8,
-            "gradient_accumulation_steps": 1,
-            "num_train_epochs": 20,
-            "learning_rate": 1e-5,
-            "export_model_dir": "./checkpoint/model_best",
-            "disable_tqdm": True,
-            "metric_for_best_model": "macro_f1",
-            "load_best_model_at_end": True,
-            "save_total_limit": 1,
-            "evaluation_strategy": "steps",
-            "save_strategy": "steps",
-            "do_train": True,
-            "do_export": True,
-        },
     )
 
     print(tuner)
