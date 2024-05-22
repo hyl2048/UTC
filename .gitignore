@@ -167,4 +167,5 @@ utc_paddle/checkpoint
 utc_pytorch/data
 utc_pytorch/models
 utc_pytorch/logs
+wandb
 .vscode
