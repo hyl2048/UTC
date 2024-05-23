@@ -89,10 +89,11 @@ class InspectStateCallback(TrainerCallback):
     ):
         if state.log_history:
 
-            train.report(
+            wandb.log(
                 {
                     "loss": state.log_history[-2]["loss"],
                     "eval_loss": state.log_history[-1]["eval_loss"],
+                    "eval_macro_f1": state.log_history[-1]["eval_macro_f1"],
                 }
             )
 
@@ -141,22 +142,22 @@ class ModelArguments:
 sweep_config = {
     "method": "bayes",
     "name": "sweep",
-    "metric": {"goal": "maximize", "name": "mac_f1"},
+    "metric": {"goal": "maximize", "name": "eval_macro_f1"},
     "parameters": {
-        "batch_size": {"values": [16, 32, 64]},
-        "epochs": {"values": [5, 10, 15]},
-        "lr": {"max": 0.1, "min": 0.0001},
+        "batch_size": {"values": [32, 64]},
+        "epochs": {"values": [1, 2, 3]},
+        "lr": {"max": 5e-5, "min": 1e-5},
+        "beta1": {"min": 0.8, "max": 1.0},
+        "beta2": {"min": 0.8, "max": 1.0},
+        "weight_decay": {"min": 0.01, "max": 0.1},
     },
-    "lr": (1e-5, 5e-5),
-    "beta1": (0.8, 1.0),
-    "beta2": (0.8, 1.0),
-    "weight_decay": (0.001, 0.1),
 }
 
 sweep_id = wandb.sweep(sweep=sweep_config, project="my-first-sweep")
 
 
 def train_function():
+    run = wandb.init()
     config = {}
     constant_config = {
         "device": "gpu",
@@ -179,10 +180,10 @@ def train_function():
         "do_export": True,
         "seed": 42,
         "gradient_accumulation_steps": 1,
-        "per_device_train_batch_size": 64,
+        "per_device_train_batch_size": wandb.config.batch_size,
         "optimizer": "AdamW",
         "scheduler": "LinearWarmup",
-        "num_train_epochs": 3,
+        "num_train_epochs": wandb.config.epochs,
         "max_grad_norm": 1,
         "warmup_steps": 20,
         "lr_end": 1e-7,
@@ -266,7 +267,7 @@ def train_function():
 
     if config["scheduler"] == "LinearWarmup":
         scheduler = LinearWarmup(
-            learning_rate=config["lr"],
+            learning_rate=wandb.config.lr,
             warmup_steps=config["warmup_steps"],
             start_lr=config["start_lr"],
             end_lr=config["lr_end"],
@@ -274,9 +275,9 @@ def train_function():
 
     if config["optimizer"] == "AdamW":
         optimizer = AdamW(
-            beta1=config["beta1"],
-            beta2=config["beta2"],
-            weight_decay=config["weight_decay"],
+            beta1=wandb.config.beta1,
+            beta2=wandb.config.beta2,
+            weight_decay=wandb.config.weight_decay,
             learning_rate=scheduler,
             parameters=model.parameters(),
             apply_decay_param_fun=apply_decay_param_fun,
