@@ -15,10 +15,10 @@
 from dataclasses import dataclass, field
 
 import paddle
+import paddle.nn as nn
 import paddle.optimizer
 import paddlenlp
 import ray
-import wandb
 from paddle.metric import Accuracy
 from paddle.optimizer import (
     LBFGS,
@@ -74,6 +74,8 @@ from sklearn.metrics import f1_score
 from utils import HLCLoss, UTCLoss, read_local_dataset
 from visualdl import LogWriter
 from visualdl.server import app
+
+import wandb
 
 
 class InspectStateCallback(TrainerCallback):
@@ -138,6 +140,37 @@ class ModelArguments:
 
 def train_function(config):
 
+    constant_config = {
+        "device": "gpu",
+        "logging_steps": 1,
+        "save_steps": 500,
+        "eval_steps": 1,
+        "model_name_or_path": "models/utc-base",
+        "output_dir": "./checkpoint/model_best",
+        "dataset_path": "data/cail_mul_label_mul_classify",
+        "max_seq_length": 512,
+        "per_device_eval_batch_size": 32,
+        "export_model_dir": "./checkpoint/model_best",
+        "disable_tqdm": True,
+        "metric_for_best_model": "macro_f1",
+        "load_best_model_at_end": True,
+        "save_total_limit": 1,
+        "evaluation_strategy": "steps",
+        "save_strategy": "steps",
+        "do_train": True,
+        "do_export": True,
+        "seed": 42,
+        "gradient_accumulation_steps": 1,
+        "per_device_train_batch_size": 64,
+        "optimizer": "AdamW",
+        "scheduler": "LinearWarmup",
+        "num_train_epochs": 3,
+        "max_grad_norm": 1,
+        "warmup_steps": 20,
+        "lr_end": 1e-7,
+        "start_lr": 0,
+    }
+    config.update(constant_config)
     # Parse the arguments.
     parser = PdArgumentParser((ModelArguments, DataArguments, PromptTuningArguments))
     model_args, data_args, training_args = parser.parse_dict(config)
@@ -204,10 +237,34 @@ def train_function(config):
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
-    if config["optimizer"] == "AdamW":
-        optimizer = AdamW(learning_rate=config["lr"])
+    decay_parameters = [
+        p.name
+        for n, p in model.named_parameters()
+        if not any(nd in n for nd in ["bias", "norm"])
+    ]
+
+    def apply_decay_param_fun(x):
+        return x in decay_parameters
+
     if config["scheduler"] == "LinearWarmup":
-        scheduler = LinearWarmup
+        scheduler = LinearWarmup(
+            learning_rate=config["lr"],
+            warmup_steps=config["warmup_steps"],
+            start_lr=config["start_lr"],
+            end_lr=config["lr_end"],
+        )
+
+    if config["optimizer"] == "AdamW":
+        optimizer = AdamW(
+            learning_rate=scheduler,
+            parameters=model.parameters(),
+            apply_decay_param_fun=apply_decay_param_fun,
+            grad_clip=(
+                nn.ClipGradByGlobalNorm(config["max_grad_norm"])
+                if config["max_grad_norm"] > 0
+                else None
+            ),
+        )
 
     trainer = PromptTrainer(
         model=prompt_model,
@@ -257,46 +314,17 @@ def train_function(config):
 
 def tune_with_callback():
     """使用callback"""
-    constant_config = {
-        "device": "gpu",
-        "logging_steps": 1,
-        "save_steps": 500,
-        "eval_steps": 1,
-        "model_name_or_path": "models/utc-base",
-        "output_dir": "./checkpoint/model_best",
-        "dataset_path": "data/cail_mul_label_mul_classify",
-        "max_seq_length": 512,
-        "per_device_eval_batch_size": 8,
-        "export_model_dir": "./checkpoint/model_best",
-        "disable_tqdm": True,
-        "metric_for_best_model": "macro_f1",
-        "load_best_model_at_end": True,
-        "save_total_limit": 1,
-        "evaluation_strategy": "steps",
-        "save_strategy": "steps",
-        "do_train": True,
-        "do_export": True,
-        "seed": 42,
-        "gradient_accumulation_steps": 1,
-    }
 
     search_space = {
-        "per_device_train_batch_size": 8,
-        "optim": "AdamW",
-        "scheduler": "LinearWarmup",
-        "num_train_epochs": 20,
-        "lr": tune.uniform(1e-5, 5e-4),
+        "lr": (1e-5, 2e-5),
     }
 
-    train_config = constant_config.update(search_space)
-
-    search_algorithm = BayesOptSearch(metric="loss", mode="min")
+    search_algorithm = BayesOptSearch(space=search_space, metric="loss", mode="min")
 
     tuner = tune.run(
         train_function,
         resources_per_trial={"cpu": 5, "gpu": 1},
         callbacks=[WandbLoggerCallback(project="Wandb_example_two")],
-        config=train_config,
         search_alg=search_algorithm,
         scheduler=ASHAScheduler(
             metric="loss", mode="min", max_t=4380, grace_period=1, reduction_factor=2
