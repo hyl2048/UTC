@@ -19,6 +19,7 @@ import paddle.nn as nn
 import paddle.optimizer
 import paddlenlp
 import ray
+import wandb
 from paddle.metric import Accuracy
 from paddle.optimizer import (
     LBFGS,
@@ -74,8 +75,6 @@ from sklearn.metrics import f1_score
 from utils import HLCLoss, UTCLoss, read_local_dataset
 from visualdl import LogWriter
 from visualdl.server import app
-
-import wandb
 
 
 class InspectStateCallback(TrainerCallback):
@@ -256,6 +255,9 @@ def train_function(config):
 
     if config["optimizer"] == "AdamW":
         optimizer = AdamW(
+            beta1=config["beta1"],
+            beta2=config["beta2"],
+            weight_decay=config["weight_decay"]
             learning_rate=scheduler,
             parameters=model.parameters(),
             apply_decay_param_fun=apply_decay_param_fun,
@@ -316,7 +318,10 @@ def tune_with_callback():
     """使用callback"""
 
     search_space = {
-        "lr": (1e-5, 2e-5),
+        "lr": (1e-5, 5e-5),
+        "beta1": (0.8, 1.0),
+        "beta2": (0.8, 1.0),
+        "weight_decay":(0.001,0.1)
     }
 
     search_algorithm = BayesOptSearch(space=search_space, metric="loss", mode="min")
