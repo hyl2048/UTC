@@ -336,4 +336,4 @@ def train_function():
 
 if __name__ == "__main__":
 
-    wandb.agent(sweep_id, function=train_function, count=4)
+    wandb.agent(sweep_id, function=train_function, count=2)
