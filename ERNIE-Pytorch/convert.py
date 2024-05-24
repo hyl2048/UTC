@@ -18,6 +18,9 @@ import paddle
 import torch
 from utils import logger
 
+from utc_pytorch.template import UTCTemplate
+from utc_pytorch.utils import DataCollatorWithPadding
+
 
 def build_params_map(attention_num=12):
     """
@@ -174,39 +177,81 @@ def convert(model, pd_model_weight_path, save_path):
 def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float = 1e-5):
     logger.info("Validating PyTorch model...")
 
-    batch_size = 2
-    seq_length = 6
-    seq_length_with_token = seq_length + 2
-    max_seq_length = 512
-    dummy_input = [" ".join([tokenizer.unk_token]) * seq_length] * batch_size
-    encoded_inputs = dict(
-        tokenizer(
-            dummy_input,
-            pad_to_max_seq_len=True,
-            max_seq_len=512,
-            return_attention_mask=True,
-            return_position_ids=True,
-        )
+    # batch_size = 2
+    # seq_length = 6
+    # seq_length_with_token = seq_length + 2
+    # max_seq_length = 512
+    # dummy_input = [" ".join([tokenizer.unk_token]) * seq_length] * batch_size
+    # encoded_inputs = dict(
+    #     tokenizer(
+    #         dummy_input,
+    #         pad_to_max_seq_len=True,
+    #         max_seq_len=512,
+    #         return_attention_mask=True,
+    #         return_position_ids=True,
+    #     )
+    # )
+    example = {
+        "text_a": "综上，原告现要求变更女儿李乙抚养关系的请求，本院应予支持。",
+        "text_b": "",
+        "question": "",
+        "choices": [
+            "婚后生育",
+            "抚养孩子",
+            "共同财产",
+            "付抚养费",
+            "分不动产",
+            "婚后分居",
+            "二次起诉",
+            "按月付费",
+            "同意离婚",
+            "共同债务",
+            "婚前财产",
+            "法定离婚",
+            "家庭义务",
+            "非婚生子",
+            "适当帮助",
+            "无视协议",
+            "损害赔偿",
+            "分居两年",
+            "子女分开",
+            "个人财产",
+        ],
+        "labels": [0, 1],
+    }
+    collator_paddle = DataCollatorWithPadding(
+        tokenizer=tokenizer, return_tensors="pd", return_attention_mask=True
     )
-    paddle_inputs = {}
-    for name, value in encoded_inputs.items():
-        if name == "attention_mask":
-            if model_type == "uie-m":
-                continue
-            name = "att_mask"
-        if name == "position_ids":
-            name = "pos_ids"
-        paddle_inputs[name] = paddle.to_tensor(value, dtype=paddle.int64)
+    collator_pt = DataCollatorWithPadding(
+        tokenizer=tokenizer, return_tensors="pt", return_attention_mask=True
+    )
+    utc_template = UTCTemplate(tokenizer, max_length=512)
 
-    paddle_named_outputs = ["start_prob", "end_prob"]
-    paddle_outputs = pd_model(**paddle_inputs)
+    input_utc_template = utc_template(example)
+    input_content = collator_paddle([input_utc_template])
+
+    # input_content_format = [v for k, v in input_content.items()]
+    # input_content_format[2] = input_content_format[2].int()
+
+    # paddle_inputs = {}
+    # for name, value in encoded_inputs.items():
+    #     if name == "attention_mask":
+    #         if model_type == "uie-m":
+    #             continue
+    #         name = "att_mask"
+    #     if name == "position_ids":
+    #         name = "pos_ids"
+    #     paddle_inputs[name] = paddle.to_tensor(value, dtype=paddle.int64)
+
+    paddle_named_outputs = ["option_logits"]
+    paddle_outputs = pd_model(**input_content)
 
     torch_inputs = {}
-    for name, value in encoded_inputs.items():
+    for name, value in input_content.items():
         if name == "attention_mask":
             if model_type == "uie-m":
                 continue
-        torch_inputs[name] = torch.tensor(value, dtype=torch.int64)
+        torch_inputs[name] = torch.tensor(value.numpy(), dtype=torch.int64)
     torch_outputs = pt_model(**torch_inputs)
     torch_outputs_dict = {}
 
@@ -233,7 +278,7 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
     # Check the shape and values match
     for name, ref_value in zip(paddle_named_outputs, paddle_outputs):
         ref_value = ref_value.numpy()
-        pt_value = torch_outputs_dict[name].detach().numpy()
+        pt_value = torch_outputs_dict[name].detach().numpy().squeeze()  ## 加了 squeeze
         logger.info(f'\t- Validating PyTorch Model output "{name}":')
 
         # Shape
@@ -260,18 +305,20 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
 
 
 if __name__ == "__main__":
-    from paddlenlp.taskflow.models import UIE as UIEPaddle
-    from paddlenlp.transformers import ErnieTokenizer
+    from paddlenlp.transformers import UTC as UTCPaddle
+    from paddlenlp.transformers import AutoTokenizer, ErnieTokenizer
 
-    from ..utc_pytorch.model import UTC
+    from utc_pytorch.model import UTC
 
-    input_model = "models/utc-base"
-    output_model = "models/convert/utc_base"
+    input_model = "ERNIE-Pytorch/models/utc-base"
+    output_model = "ERNIE-Pytorch/models/convert/utc_base"
     # extract_and_convert(input_model, output_model)
-    tokenizer: ErnieTokenizer = ErnieTokenizer.from_pretrained(input_model)
-    model = UTC.from_pretrained(output_model)
+    tokenizer = ErnieTokenizer.from_pretrained(
+        pretrained_model_name_or_path=input_model, return_dict=False
+    )
+    model = UTC.from_pretrained(pretrained_model_name_or_path=output_model)
     model.eval()
-    paddle_model = UIEPaddle.from_pretrained(input_model)
+    paddle_model = UTCPaddle.from_pretrained(pretrained_model_name_or_path=input_model)
     paddle_model.eval()
     model_type = "uie"
     validate_model(tokenizer, model, paddle_model, model_type)

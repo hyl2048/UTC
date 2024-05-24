@@ -15,10 +15,12 @@ from typing import Any, Dict, List, Optional, Union
 
 import colorlog
 import numpy as np
+import paddle
 import torch
-from log import logger
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
+
+from utc_pytorch.log import logger
 
 
 class MLMTokenizerWrap(object):
@@ -41,8 +43,11 @@ class MLMTokenizerWrap(object):
             # print(part)
             orig_input_ids.append(
                 self.tokenizer.encode(
-                    part["text"], add_special_tokens=False, return_token_type_ids=False
-                )
+                    part["text"],
+                    add_special_tokens=False,
+                    return_token_type_ids=False,
+                    return_dict=False,
+                )["input_ids"]
             )
 
         # 计算inputs中每个part应该保留长度
@@ -280,6 +285,8 @@ class DataCollatorWithPadding:
     def _convert_to_tensors(self, data):
         if self.return_tensors == "pt":
             return torch.tensor(data)
+        if self.return_tensors == "pd":
+            return paddle.to_tensor(data)
         return data
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -333,5 +340,3 @@ class DataCollatorWithPadding:
                 batch[key] = self._convert_to_tensors(values)
 
         return batch
-
-

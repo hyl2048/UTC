@@ -3,8 +3,9 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from transformers import ErnieConfig, ErnieModel, ErniePreTrainedModel
-from utils import UTCLoss
+
+from utc_pytorch.erine import ErnieConfig, ErnieModel, ErniePreTrainedModel
+from utc_pytorch.utils import UTCLoss
 
 
 class UTC(ErniePreTrainedModel):

@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 from transformers import PreTrainedTokenizer
-from utils import MLMTokenizerWrap
+
+from utc_pytorch.utils import MLMTokenizerWrap
 
 DEFAULT_MAX_OPTIONS = 10
 
@@ -23,7 +24,7 @@ class Template:
     ):
         super(Template, self).__init__()
         for key, value in kwargs:
-            setattr(self, key, valus)
+            setattr(self, key, value)
         self.tokenizer = tokenizer
         self.prompt_tokenizer = MLMTokenizerWrap(tokenizer, max_length)
         self.set_prompt(prompt)
