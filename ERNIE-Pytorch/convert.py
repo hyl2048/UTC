@@ -13,8 +13,10 @@ import collections
 import json
 import os
 
+import numpy as np
 import paddle
 import torch
+from utils import logger
 
 
 def build_params_map(attention_num=12):
@@ -22,39 +24,73 @@ def build_params_map(attention_num=12):
     build params map from paddle-paddle's ERNIE to transformer's BERT
     :return:
     """
-    weight_map = collections.OrderedDict({
-        'ernie.embeddings.word_embeddings.weight': "ernie.embeddings.word_embeddings.weight",
-        'ernie.embeddings.position_embeddings.weight': "ernie.embeddings.position_embeddings.weight",
-        'ernie.embeddings.token_type_embeddings.weight': "ernie.embeddings.token_type_embeddings.weight",
-        'ernie.embeddings.task_type_embeddings.weight': "ernie.embeddings.task_type_embeddings.weight",
-        'ernie.embeddings.layer_norm.weight': 'ernie.embeddings.LayerNorm.gamma',
-        'ernie.embeddings.layer_norm.bias': 'ernie.embeddings.LayerNorm.beta',
-    })
+    weight_map = collections.OrderedDict(
+        {
+            "ernie.embeddings.word_embeddings.weight": "ernie.embeddings.word_embeddings.weight",
+            "ernie.embeddings.position_embeddings.weight": "ernie.embeddings.position_embeddings.weight",
+            "ernie.embeddings.token_type_embeddings.weight": "ernie.embeddings.token_type_embeddings.weight",
+            "ernie.embeddings.task_type_embeddings.weight": "ernie.embeddings.task_type_embeddings.weight",
+            "ernie.embeddings.layer_norm.weight": "ernie.embeddings.LayerNorm.gamma",
+            "ernie.embeddings.layer_norm.bias": "ernie.embeddings.LayerNorm.beta",
+        }
+    )
     # add attention layers
     for i in range(attention_num):
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.q_proj.weight'] = f'ernie.encoder.layer.{i}.attention.self.query.weight'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.q_proj.bias'] = f'ernie.encoder.layer.{i}.attention.self.query.bias'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.k_proj.weight'] = f'ernie.encoder.layer.{i}.attention.self.key.weight'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.k_proj.bias'] = f'ernie.encoder.layer.{i}.attention.self.key.bias'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.v_proj.weight'] = f'ernie.encoder.layer.{i}.attention.self.value.weight'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.v_proj.bias'] = f'ernie.encoder.layer.{i}.attention.self.value.bias'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.out_proj.weight'] = f'ernie.encoder.layer.{i}.attention.output.dense.weight'
-        weight_map[f'ernie.encoder.layers.{i}.self_attn.out_proj.bias'] = f'ernie.encoder.layer.{i}.attention.output.dense.bias'
-        weight_map[f'ernie.encoder.layers.{i}.norm1.weight'] = f'ernie.encoder.layer.{i}.attention.output.LayerNorm.gamma'
-        weight_map[f'ernie.encoder.layers.{i}.norm1.bias'] = f'ernie.encoder.layer.{i}.attention.output.LayerNorm.beta'
-        weight_map[f'ernie.encoder.layers.{i}.linear1.weight'] = f'ernie.encoder.layer.{i}.intermediate.dense.weight'
-        weight_map[f'ernie.encoder.layers.{i}.linear1.bias'] = f'ernie.encoder.layer.{i}.intermediate.dense.bias'
-        weight_map[f'ernie.encoder.layers.{i}.linear2.weight'] = f'ernie.encoder.layer.{i}.output.dense.weight'
-        weight_map[f'ernie.encoder.layers.{i}.linear2.bias'] = f'ernie.encoder.layer.{i}.output.dense.bias'
-        weight_map[f'ernie.encoder.layers.{i}.norm2.weight'] = f'ernie.encoder.layer.{i}.output.LayerNorm.gamma'
-        weight_map[f'ernie.encoder.layers.{i}.norm2.bias'] = f'ernie.encoder.layer.{i}.output.LayerNorm.beta'
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.q_proj.weight"] = (
+            f"ernie.encoder.layer.{i}.attention.self.query.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.q_proj.bias"] = (
+            f"ernie.encoder.layer.{i}.attention.self.query.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.k_proj.weight"] = (
+            f"ernie.encoder.layer.{i}.attention.self.key.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.k_proj.bias"] = (
+            f"ernie.encoder.layer.{i}.attention.self.key.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.v_proj.weight"] = (
+            f"ernie.encoder.layer.{i}.attention.self.value.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.v_proj.bias"] = (
+            f"ernie.encoder.layer.{i}.attention.self.value.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.out_proj.weight"] = (
+            f"ernie.encoder.layer.{i}.attention.output.dense.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.self_attn.out_proj.bias"] = (
+            f"ernie.encoder.layer.{i}.attention.output.dense.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.norm1.weight"] = (
+            f"ernie.encoder.layer.{i}.attention.output.LayerNorm.gamma"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.norm1.bias"] = (
+            f"ernie.encoder.layer.{i}.attention.output.LayerNorm.beta"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.linear1.weight"] = (
+            f"ernie.encoder.layer.{i}.intermediate.dense.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.linear1.bias"] = (
+            f"ernie.encoder.layer.{i}.intermediate.dense.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.linear2.weight"] = (
+            f"ernie.encoder.layer.{i}.output.dense.weight"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.linear2.bias"] = (
+            f"ernie.encoder.layer.{i}.output.dense.bias"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.norm2.weight"] = (
+            f"ernie.encoder.layer.{i}.output.LayerNorm.gamma"
+        )
+        weight_map[f"ernie.encoder.layers.{i}.norm2.bias"] = (
+            f"ernie.encoder.layer.{i}.output.LayerNorm.beta"
+        )
     # add pooler
-    weight_map['ernie.pooler.dense.weight'] = 'ernie.pooler.dense.weight'
-    weight_map['ernie.pooler.dense.bias'] = 'ernie.pooler.dense.bias'
-    weight_map['linear_q.weight'] = 'linear_q.weight'
-    weight_map['linear_q.bias'] = 'linear_q.bias'
-    weight_map['linear_k.weight'] = 'linear_k.weight'
-    weight_map['linear_k.bias'] = 'linear_k.bias'
+    weight_map["ernie.pooler.dense.weight"] = "ernie.pooler.dense.weight"
+    weight_map["ernie.pooler.dense.bias"] = "ernie.pooler.dense.bias"
+    weight_map["linear_q.weight"] = "linear_q.weight"
+    weight_map["linear_q.bias"] = "linear_q.bias"
+    weight_map["linear_k.weight"] = "linear_k.weight"
+    weight_map["linear_k.bias"] = "linear_k.bias"
     return weight_map
 
 
@@ -67,8 +103,10 @@ def extract_and_convert(input_dir, output_dir):
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    print('=' * 20 + 'save config file' + '=' * 20)
-    config = json.load(open(os.path.join(input_dir, 'config.json'), 'rt', encoding='utf-8'))
+    print("=" * 20 + "save config file" + "=" * 20)
+    config = json.load(
+        open(os.path.join(input_dir, "config.json"), "rt", encoding="utf-8")
+    )
     # if 'init_args' in config:
     #     config = config['init_args'][0]
     # del config['init_class']
@@ -76,29 +114,164 @@ def extract_and_convert(input_dir, output_dir):
     # config['model_type'] = 'ernie'
     # config['architectures'] = ["ErnieForMaskedLM"]  # or 'BertModel'
     # config['intermediate_size'] = 4 * config['hidden_size']
-    json.dump(config, open(os.path.join(output_dir, 'config.json'), 'wt', encoding='utf-8'), indent=4)
-    print('=' * 20 + 'save vocab file' + '=' * 20)
-    with open(os.path.join(input_dir, 'vocab.txt'), 'rt', encoding='utf-8') as f:
+    json.dump(
+        config,
+        open(os.path.join(output_dir, "config.json"), "wt", encoding="utf-8"),
+        indent=4,
+    )
+    print("=" * 20 + "save vocab file" + "=" * 20)
+    with open(os.path.join(input_dir, "vocab.txt"), "rt", encoding="utf-8") as f:
         words = f.read().splitlines()
-    words = [word.split('\t')[0] for word in words]
-    with open(os.path.join(output_dir, 'vocab.txt'), 'wt', encoding='utf-8') as f:
+    words = [word.split("\t")[0] for word in words]
+    with open(os.path.join(output_dir, "vocab.txt"), "wt", encoding="utf-8") as f:
         for word in words:
             f.write(word + "\n")
-    print('=' * 20 + 'extract weights' + '=' * 20)
+    print("=" * 20 + "extract weights" + "=" * 20)
     state_dict = collections.OrderedDict()
-    weight_map = build_params_map(attention_num=config['num_hidden_layers'])
-    paddle_paddle_params = paddle.load(os.path.join(input_dir, 'model_state.pdparams'))
+    weight_map = build_params_map(attention_num=config["num_hidden_layers"])
+    paddle_paddle_params = paddle.load(os.path.join(input_dir, "model_state.pdparams"))
     for weight_name, weight_value in paddle_paddle_params.items():
-        if 'weight' in weight_name and 'weight' in weight_map[weight_name]:
-            if 'ernie.encoder' in weight_name or 'ernie.pooler' in weight_name or 'linear_q' in weight_name or 'linear_k' in weight_name:
-                weight_value = weight_value.transpose([1,0])
+        if "weight" in weight_name and "weight" in weight_map[weight_name]:
+            if (
+                "ernie.encoder" in weight_name
+                or "ernie.pooler" in weight_name
+                or "linear_q" in weight_name
+                or "linear_k" in weight_name
+            ):
+                weight_value = weight_value.transpose([1, 0])
         if weight_name not in weight_map:
-            print('=' * 20, '[SKIP]', weight_name, '=' * 20)
+            print("=" * 20, "[SKIP]", weight_name, "=" * 20)
             continue
         state_dict[weight_map[weight_name]] = torch.from_numpy(weight_value.numpy())
-        print(weight_name, '->', weight_map[weight_name], weight_value.shape)
+        print(weight_name, "->", weight_map[weight_name], weight_value.shape)
     torch.save(state_dict, os.path.join(output_dir, "pytorch_model.bin"))
 
 
-if __name__ == '__main__':
-    extract_and_convert('models/utc-base', 'models/convert/utc_base')
+def convert(model, pd_model_weight_path, save_path):
+    # 加载paddle参数
+    paddle_key_params = paddle.load(pd_model_weight_path)
+
+    paddle_state_dict = change_paddle_key()
+    state_dict = model.state_dict()
+    for key in state_dict.keys():
+
+        if key in paddle_state_dict.keys():
+            param = paddle_key_params[paddle_state_dict[key]]
+            if (
+                "weight" in key
+                and "LayerNorm" not in key
+                and "embeddings" not in key
+                and "decoder" not in key
+            ):
+                param = param.transpose((1, 0))
+            state_dict[key] = torch.from_numpy(param.numpy())
+        else:
+            print(key)
+    model.load_state_dict(state_dict, strict=False)
+    torch.save(model.state_dict(), save_path)
+
+
+def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float = 1e-5):
+    logger.info("Validating PyTorch model...")
+
+    batch_size = 2
+    seq_length = 6
+    seq_length_with_token = seq_length + 2
+    max_seq_length = 512
+    dummy_input = [" ".join([tokenizer.unk_token]) * seq_length] * batch_size
+    encoded_inputs = dict(
+        tokenizer(
+            dummy_input,
+            pad_to_max_seq_len=True,
+            max_seq_len=512,
+            return_attention_mask=True,
+            return_position_ids=True,
+        )
+    )
+    paddle_inputs = {}
+    for name, value in encoded_inputs.items():
+        if name == "attention_mask":
+            if model_type == "uie-m":
+                continue
+            name = "att_mask"
+        if name == "position_ids":
+            name = "pos_ids"
+        paddle_inputs[name] = paddle.to_tensor(value, dtype=paddle.int64)
+
+    paddle_named_outputs = ["start_prob", "end_prob"]
+    paddle_outputs = pd_model(**paddle_inputs)
+
+    torch_inputs = {}
+    for name, value in encoded_inputs.items():
+        if name == "attention_mask":
+            if model_type == "uie-m":
+                continue
+        torch_inputs[name] = torch.tensor(value, dtype=torch.int64)
+    torch_outputs = pt_model(**torch_inputs)
+    torch_outputs_dict = {}
+
+    for name, value in torch_outputs.items():
+        torch_outputs_dict[name] = value
+
+    torch_outputs_set, ref_outputs_set = set(torch_outputs_dict.keys()), set(
+        paddle_named_outputs
+    )
+    if not torch_outputs_set.issubset(ref_outputs_set):
+        logger.info(
+            f"\t-[x] Pytorch model output names {torch_outputs_set} do not match reference model {ref_outputs_set}"
+        )
+
+        raise ValueError(
+            "Outputs doesn't match between reference model and Pytorch converted model: "
+            f"{torch_outputs_set.difference(ref_outputs_set)}"
+        )
+    else:
+        logger.info(
+            f"\t-[✓] Pytorch model output names match reference model ({torch_outputs_set})"
+        )
+
+    # Check the shape and values match
+    for name, ref_value in zip(paddle_named_outputs, paddle_outputs):
+        ref_value = ref_value.numpy()
+        pt_value = torch_outputs_dict[name].detach().numpy()
+        logger.info(f'\t- Validating PyTorch Model output "{name}":')
+
+        # Shape
+        if not pt_value.shape == ref_value.shape:
+            logger.info(
+                f"\t\t-[x] shape {pt_value.shape} doesn't match {ref_value.shape}"
+            )
+            raise ValueError(
+                "Outputs shape doesn't match between reference model and Pytorch converted model: "
+                f"Got {ref_value.shape} (reference) and {pt_value.shape} (PyTorch)"
+            )
+        else:
+            logger.info(f"\t\t-[✓] {pt_value.shape} matches {ref_value.shape}")
+
+        # Values
+        if not np.allclose(ref_value, pt_value, atol=atol):
+            logger.info(f"\t\t-[x] values not close enough (atol: {atol})")
+            raise ValueError(
+                "Outputs values doesn't match between reference model and Pytorch converted model: "
+                f"Got max absolute difference of: {np.amax(np.abs(ref_value - pt_value))}"
+            )
+        else:
+            logger.info(f"\t\t-[✓] all values close (atol: {atol})")
+
+
+if __name__ == "__main__":
+    from paddlenlp.taskflow.models import UIE as UIEPaddle
+    from paddlenlp.transformers import ErnieTokenizer
+
+    from ..utc_pytorch.model import UTC
+
+    input_model = "models/utc-base"
+    output_model = "models/convert/utc_base"
+    # extract_and_convert(input_model, output_model)
+    tokenizer: ErnieTokenizer = ErnieTokenizer.from_pretrained(input_model)
+    model = UTC.from_pretrained(output_model)
+    model.eval()
+    paddle_model = UIEPaddle.from_pretrained(input_model)
+    paddle_model.eval()
+    model_type = "uie"
+    validate_model(tokenizer, model, paddle_model, model_type)
