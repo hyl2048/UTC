@@ -29,20 +29,14 @@ from transformers import PretrainedConfig
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
-    BaseModelOutputWithPoolingAndCrossAttentions,
-)
-from transformers.modeling_utils import (
-    PreTrainedModel,
-    apply_chunking_to_forward,
-    find_pruneable_heads_and_indices,
-    prune_linear_layer,
-)
-from transformers.utils import (
-    add_code_sample_docstrings,
-    add_start_docstrings,
-    add_start_docstrings_to_model_forward,
-    logging,
-)
+    BaseModelOutputWithPoolingAndCrossAttentions)
+from transformers.modeling_utils import (PreTrainedModel,
+                                         apply_chunking_to_forward,
+                                         find_pruneable_heads_and_indices,
+                                         prune_linear_layer)
+from transformers.utils import (add_code_sample_docstrings,
+                                add_start_docstrings,
+                                add_start_docstrings_to_model_forward, logging)
 
 
 class ErnieConfig(PretrainedConfig):
@@ -301,9 +295,7 @@ class ErnieEmbeddings(nn.Module):
         inputs_embeds=None,
         past_key_values_length=0,
     ):
-        # import pdb
-
-        # pdb.set_trace()
+     
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
@@ -439,9 +431,7 @@ class ErnieSelfAttention(nn.Module):
             value_layer = self.transpose_for_scores(self.value(hidden_states))
 
         query_layer = self.transpose_for_scores(mixed_query_layer)
-        # import pdb
 
-        # pdb.set_trace()
         if self.is_decoder:
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
             # Further calls to cross_attention layer can then reuse all cross-attention
@@ -1173,9 +1163,7 @@ class ErnieModel(ErniePreTrainedModel):
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
-        # import pdb
-
-        # pdb.set_trace()
+       
         embedding_output = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,

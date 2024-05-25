@@ -37,9 +37,7 @@ class UTC(ErniePreTrainedModel):
             position_ids=position_ids,
             attention_mask=attention_mask,
         )
-        import pdb
-
-        pdb.set_trace()
+   
         sequence_output = outputs[0]
         batch_size, seq_len, hidden_size = sequence_output.size()
         flat_sequence_output = torch.reshape(sequence_output, [-1, hidden_size])
@@ -64,9 +62,7 @@ class UTC(ErniePreTrainedModel):
             option_logits[index] -= (
                 1 - (omask_positions[index] > 0).to(torch.float32)
             ) * 1e12
-        import pdb
 
-        pdb.set_trace()
         res_outputs = {"option_logits": option_logits}
         if labels is not None:
             loss_fn = UTCLoss()

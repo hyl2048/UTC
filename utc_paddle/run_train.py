@@ -15,26 +15,16 @@
 from dataclasses import dataclass, field
 
 import paddle
-import paddlenlp
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
-from paddlenlp.prompt import (
-    PromptModelForSequenceClassification,
-    PromptTrainer,
-    PromptTuningArguments,
-    UTCTemplate,
-)
+from paddlenlp.prompt import (PromptModelForSequenceClassification,
+                              PromptTrainer, PromptTuningArguments,
+                              UTCTemplate)
 from paddlenlp.trainer import PdArgumentParser
-from paddlenlp.trainer.integrations import AutoNLPCallback, VisualDLCallback
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
-from ray import train, tune
-from ray.tune.schedulers import ASHAScheduler
-from ray.tune.search.bayesopt import BayesOptSearch
 from sklearn.metrics import f1_score
-from utils import HLCLoss, UTCLoss, read_local_dataset
-from visualdl import LogWriter
-from visualdl.server import app
+from utils import UTCLoss, read_local_dataset
 
 
 @dataclass
@@ -79,20 +69,42 @@ class ModelArguments:
 
 def main():
 
-    app.run(
-        logdir="./runs/utc_experiment",
-        model="./runs/utc_experiment/model",
-        host="127.0.0.1",
-        port=6006,
-        cache_timeout=20,
-        language=None,
-        public_path=None,
-        api_only=False,
-        open_browser=False,
-    )
+    config = {
+        "device": "gpu",
+        "logging_steps": 1,
+        "save_steps": 500,
+        "eval_steps": 1,
+        "model_name_or_path": "/root/UTC/utc_paddle/models/utc-base",
+        "output_dir": "./checkpoint/model_best",
+        "dataset_path": "/root/UTC/utc_paddle/data/cail_mul_label_mul_classify",
+        "max_seq_length": 512,
+        "per_device_eval_batch_size": 32,
+        "export_model_dir": "./checkpoint/model_best",
+        "disable_tqdm": True,
+        "metric_for_best_model": "macro_f1",
+        "load_best_model_at_end": True,
+        "save_total_limit": 1,
+        "evaluation_strategy": "steps",
+        "save_strategy": "steps",
+        "do_train": True,
+        "do_export": True,
+        "seed": 42,
+        "gradient_accumulation_steps": 1,
+        "per_device_train_batch_size": 32,
+        "optimizer": "AdamW",
+        "scheduler": "LinearWarmup",
+        "num_train_epochs": 3,
+        "max_grad_norm": 1,
+        "warmup_steps": 20,
+        "lr_end": 1e-7,
+        "start_lr": 0,
+        "save_plm": False,
+        "learning_rate": 1e-5,
+    }
+
     # Parse the arguments.
     parser = PdArgumentParser((ModelArguments, DataArguments, PromptTuningArguments))
-    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    model_args, data_args, training_args = parser.parse_dict(config)
     training_args.print_config(model_args, "Model")
     training_args.print_config(data_args, "Data")
     paddle.set_device(training_args.device)
@@ -100,27 +112,6 @@ def main():
     # Load the pretrained language model.
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
     model = UTC.from_pretrained(model_args.model_name_or_path)
-
-    input_ids = paddle.cast(paddle.rand([8, 200]), "int64")
-    token_type_ids = paddle.cast(paddle.rand([8, 200]), "int64")
-    position_ids = paddle.cast(paddle.rand([8, 200]), "int64")
-    attention_mask = paddle.cast(paddle.rand([8, 1, 200, 200]), "int64")
-    omask_positions = paddle.cast(paddle.rand([8, 200]), "int64")
-    cls_positions = paddle.cast(paddle.rand([8]), "int64")
-
-    paddle.jit.save(
-        model,
-        path="./runs/utc_experiment/model",
-        input_spec=[
-            input_ids,
-            token_type_ids,
-            position_ids,
-            attention_mask,
-            omask_positions,
-            cls_positions,
-        ],
-    )
-
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
@@ -175,9 +166,6 @@ def main():
 
         return {"micro_f1": micro_f1, "macro_f1": macro_f1}
 
-    log_writer = LogWriter(logdir="./runs/utc_experiment")
-    VisualDLCb = VisualDLCallback(vdl_writer=log_writer)
-
     trainer = PromptTrainer(
         model=prompt_model,
         tokenizer=tokenizer,
@@ -185,7 +173,7 @@ def main():
         criterion=criterion,
         train_dataset=train_ds,
         eval_dataset=dev_ds,
-        callbacks=[VisualDLCb],
+        callbacks=None,
         compute_metrics=(
             compute_metrics_single_label if data_args.single_label else compute_metrics
         ),
