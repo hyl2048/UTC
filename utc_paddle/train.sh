@@ -10,10 +10,10 @@ python run_train.py  \
     --output_dir ./checkpoint/model_best \
     --dataset_path data/cail_mul_label_mul_classify \
     --max_seq_length 512  \
-    --per_device_train_batch_size 8 \
-    --per_device_eval_batch_size 8 \
-    --gradient_accumulation_steps 8 \
-    --num_train_epochs 20 \
+    --per_device_train_batch_size 32 \
+    --per_device_eval_batch_size 32 \
+    --gradient_accumulation_steps 1 \
+    --num_train_epochs 2 \
     --learning_rate 1e-5 \
     --do_train \
     --do_eval \

@@ -161,7 +161,7 @@ def train_function(config):
         "do_export": True,
         "seed": 42,
         "gradient_accumulation_steps": 1,
-        "per_device_train_batch_size": 64,
+        "per_device_train_batch_size": 32,
         "optimizer": "AdamW",
         "scheduler": "LinearWarmup",
         "num_train_epochs": 3,

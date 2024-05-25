@@ -192,7 +192,7 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
     #     )
     # )
     example = {
-        "text_a": "综上，原告现要求变更女儿李乙抚养关系的请求，本院应予支持。",
+        "text_a": "经审理查明：原告甘某某与被告刘某某于1991年2月经人介绍确立恋爱关系，后双方同居生活，并于1993年2月生育一子刘某。",
         "text_b": "",
         "question": "",
         "choices": [
@@ -217,15 +217,16 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
             "子女分开",
             "个人财产",
         ],
-        "labels": [0, 1],
+        "labels": [0],
     }
-    collator_paddle = DataCollatorWithPadding(
-        tokenizer=tokenizer, return_tensors="pd", return_attention_mask=True
-    )
 
+    collator_paddle = DataCollatorWithPadding(tokenizer=tokenizer)
     utc_template = UTCTemplate(tokenizer, max_length=512)
 
     input_utc_template = utc_template(example)
+    # import pdb
+
+    # pdb.set_trace()
     input_content = collator_paddle([input_utc_template])
 
     # input_content_format = [v for k, v in input_content.items()]
@@ -242,8 +243,9 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
     #     paddle_inputs[name] = paddle.to_tensor(value, dtype=paddle.int64)
 
     paddle_named_outputs = ["option_logits"]
+    print(f"input_content{input_content}")
     paddle_outputs = pd_model(**input_content)
-
+    print(f"paddle_outputs{paddle_outputs}")
     torch_inputs = {}
     for name, value in input_content.items():
         if name == "attention_mask":
@@ -251,6 +253,7 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
                 continue
         torch_inputs[name] = torch.tensor(value.numpy(), dtype=torch.int64)
     torch_outputs = pt_model(**torch_inputs)
+    print(f"torch_outputs{torch_outputs}")
     torch_outputs_dict = {}
 
     for name, value in torch_outputs.items():
@@ -317,8 +320,8 @@ if __name__ == "__main__":
         pretrained_model_name_or_path=input_model, return_dict=False
     )
     model = UTC.from_pretrained(pretrained_model_name_or_path=output_model)
-    model.eval()
+    model.train()
     paddle_model = UTCPaddle.from_pretrained(pretrained_model_name_or_path=input_model)
-    paddle_model.eval()
+    paddle_model.train()
     model_type = "uie"
     validate_model(tokenizer, model, paddle_model, model_type)

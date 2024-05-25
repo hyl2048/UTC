@@ -40,14 +40,13 @@ class MLMTokenizerWrap(object):
         orig_input_ids = []
         # 生成最初的input_ids
         for index, part in enumerate(inputs):
-            # print(part)
+
             orig_input_ids.append(
                 self.tokenizer.encode(
                     part["text"],
                     add_special_tokens=False,
                     return_token_type_ids=False,
-                    return_dict=False,
-                )["input_ids"]
+                )
             )
 
         # 计算inputs中每个part应该保留长度
@@ -96,6 +95,7 @@ class MLMTokenizerWrap(object):
         masked_positions = self._create_masked_positions(encoded_inputs["input_ids"])
         if masked_positions is not None:
             encoded_inputs["masked_positions"] = masked_positions
+
         return encoded_inputs
 
     def add_special_tokens(self, input_dict: Dict[str, Any]):
@@ -122,6 +122,7 @@ class MLMTokenizerWrap(object):
     def _create_attention_mask(
         self, input_ids: List[int], option_length: Optional[int]
     ):
+
         if option_length is None:
             return None
         input_ids = np.array(input_ids)
@@ -148,7 +149,7 @@ class MLMTokenizerWrap(object):
         omask_index.append(opt_end)
         for opt_begin, opt_end in zip(omask_index[:-1], omask_index[1:]):
             attention_mask[opt_begin:opt_end, opt_begin:opt_end] = 1
-
+        attention_mask = (attention_mask - 1) * 1e4
         return attention_mask
 
     def _create_masked_positions(self, input_ids: List[int]):
@@ -272,7 +273,7 @@ class DataCollatorWithPadding:
     padding: Union[bool, str, PaddingStrategy] = True
     max_length: Optional[int] = None
     pad_to_multiple_of: Optional[int] = None
-    return_tensors: str = "pt"
+    return_tensors: str = "pd"
     return_attention_mask: Optional[bool] = None
     default_model_input_names: List = (
         "input_ids",

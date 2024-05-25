@@ -16,17 +16,17 @@ pretrained_model_path=$model_path/pytorch_model.bin
 checkpoint_dir=models/checkpoint_dir
 log_dir=logs
 
-train_batch_size=8
-test_batch_size=8
+train_batch_size=32
+test_batch_size=32
 seq_length=512
 learning_rate=1e-5
 
-max_epochs=20
+max_epochs=2
 
 max_grad_norm=1
-grad_accum_steps=2
-eval_steps=8
-logging_steps=8
+grad_accum_steps=1
+eval_steps=10
+logging_steps=10
 save_checkpoint_steps=500
 
 seed=42

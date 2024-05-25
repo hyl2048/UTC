@@ -177,7 +177,7 @@ class Template:
         for value in list(zip(*input_values)):
             inputs.append(dict(zip(input_names, value)))
         input_dict = self.prompt_tokenizer(inputs)
-
+        
         return input_dict
 
     def __call__(self, example: Dict[str, Any]):

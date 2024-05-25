@@ -18,12 +18,13 @@
 
 import math
 import os
+import warnings
 from typing import List, Optional, Tuple, Union
 
 import torch
 import torch.utils.checkpoint
 from packaging import version
-from torch import nn
+from torch import Tensor, nn
 from transformers import PretrainedConfig
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
@@ -258,6 +259,8 @@ class ErnieEmbeddings(nn.Module):
         self.word_embeddings = nn.Embedding(
             config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id
         )
+        self.config = config
+
         self.position_embeddings = nn.Embedding(
             config.max_position_embeddings, config.hidden_size
         )
@@ -298,6 +301,9 @@ class ErnieEmbeddings(nn.Module):
         inputs_embeds=None,
         past_key_values_length=0,
     ):
+        # import pdb
+
+        # pdb.set_trace()
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
@@ -324,7 +330,11 @@ class ErnieEmbeddings(nn.Module):
                 token_type_ids = torch.zeros(
                     input_shape, dtype=torch.long, device=self.position_ids.device
                 )
-
+        ## 更改 pad index 为 零的向量
+        with torch.no_grad():
+            self.word_embeddings.weight[self.config.pad_token_id] = torch.zeros(
+                self.config.hidden_size
+            )
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
 
@@ -429,7 +439,9 @@ class ErnieSelfAttention(nn.Module):
             value_layer = self.transpose_for_scores(self.value(hidden_states))
 
         query_layer = self.transpose_for_scores(mixed_query_layer)
+        # import pdb
 
+        # pdb.set_trace()
         if self.is_decoder:
             # if cross_attention save Tuple(torch.Tensor, torch.Tensor) of all cross attention key/value_states.
             # Further calls to cross_attention layer can then reuse all cross-attention
@@ -483,6 +495,7 @@ class ErnieSelfAttention(nn.Module):
         attention_scores = attention_scores / math.sqrt(self.attention_head_size)
         if attention_mask is not None:
             # Apply the attention mask is (precomputed for all layers in ErnieModel forward() function)
+            attention_mask = attention_mask.type_as(attention_scores)
             attention_scores = attention_scores + attention_mask
 
         # Normalize the attention scores to probabilities.
@@ -789,7 +802,9 @@ class ErnieEncoder(nn.Module):
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
                 if self.config.add_cross_attention:
                     all_cross_attentions = all_cross_attentions + (layer_outputs[2],)
+        import pdb
 
+        pdb.set_trace()
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
@@ -980,6 +995,64 @@ class ErnieModel(ErniePreTrainedModel):
         output_type=BaseModelOutputWithPoolingAndCrossAttentions,
         config_class=_CONFIG_FOR_DOC,
     )
+    def get_extended_attention_mask(
+        self,
+        attention_mask: Tensor,
+        input_shape: Tuple[int],
+        device: torch.device = None,
+        dtype: torch.float = None,
+    ) -> Tensor:
+        """
+        Makes broadcastable attention and causal masks so that future and masked tokens are ignored.
+
+        Arguments:
+            attention_mask (`torch.Tensor`):
+                Mask with ones indicating tokens to attend to, zeros for tokens to ignore.
+            input_shape (`Tuple[int]`):
+                The shape of the input to the model.
+
+        Returns:
+            `torch.Tensor` The extended attention mask, with a the same dtype as `attention_mask.dtype`.
+        """
+        if dtype is None:
+            dtype = self.dtype
+
+        if not (attention_mask.dim() == 2 and self.config.is_decoder):
+            # show warning only if it won't be shown in `create_extended_attention_mask_for_decoder`
+            if device is not None:
+                warnings.warn(
+                    "The `device` argument is deprecated and will be removed in v5 of Transformers.",
+                    FutureWarning,
+                )
+        # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
+        # ourselves in which case we just need to make it broadcastable to all heads.
+        if attention_mask.dim() == 3:
+
+            extended_attention_mask = attention_mask[:, None, :, :]
+
+        elif attention_mask.dim() == 2:
+            # Provided a padding mask of dimensions [batch_size, seq_length]
+            # - if the model is a decoder, apply a causal mask in addition to the padding mask
+            # - if the model is an encoder, make the mask broadcastable to [batch_size, num_heads, seq_length, seq_length]
+            extended_attention_mask = attention_mask[:, None, None, :]
+            extended_attention_mask = extended_attention_mask.to(
+                dtype=dtype
+            )  # fp16 compatibility
+            extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(
+                dtype
+            ).min
+        else:
+            raise ValueError(
+                f"Wrong shape for input_ids (shape {input_shape}) or attention_mask (shape {attention_mask.shape})"
+            )
+        # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
+        # masked positions, this operation will create a tensor which is 0.0 for
+        # positions we want to attend and the dtype's smallest value for masked positions.
+        # Since we are adding it to the raw scores before the softmax, this is
+        # effectively the same as removing these entirely.
+
+        return extended_attention_mask
+
     def forward(
         self,
         input_ids: Optional[torch.Tensor] = None,
@@ -1077,6 +1150,7 @@ class ErnieModel(ErniePreTrainedModel):
         extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(
             attention_mask, input_shape, device
         )
+        # extended_attention_mask: torch.Tensor = attention_mask  #TODO
 
         # If a 2D or 3D attention mask is provided for the cross-attention
         # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
@@ -1099,7 +1173,9 @@ class ErnieModel(ErniePreTrainedModel):
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+        # import pdb
 
+        # pdb.set_trace()
         embedding_output = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
@@ -1120,6 +1196,7 @@ class ErnieModel(ErniePreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+
         sequence_output = encoder_outputs[0]
         pooled_output = (
             self.pooler(sequence_output) if self.pooler is not None else None

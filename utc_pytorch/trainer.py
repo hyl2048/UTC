@@ -63,6 +63,9 @@ class Trainer:
         return output
 
     def train_step(self, batch: Dict[str, torch.Tensor]):
+        # import pdb
+
+        # pdb.set_trace()
         output = self.forward(batch)
 
         metric_output = apply_to_collection(output, torch.Tensor, lambda x: x.detach())
