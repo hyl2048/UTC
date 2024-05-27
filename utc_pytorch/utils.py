@@ -17,10 +17,9 @@ import colorlog
 import numpy as np
 import paddle
 import torch
+from log import logger
 from transformers import PreTrainedTokenizerBase
 from transformers.utils import PaddingStrategy
-
-from utc_pytorch.log import logger
 
 
 class MLMTokenizerWrap(object):
@@ -280,7 +279,7 @@ class DataCollatorWithPadding:
         "token_type_ids",
         "special_tokens_mask",
         "offset_mapping",
-        # 'position_ids'
+        # "position_ids",
     )
 
     def _convert_to_tensors(self, data):
@@ -292,9 +291,11 @@ class DataCollatorWithPadding:
 
     def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, Any]:
         batch = {}
+
         for key in features[0]:
             if key in self.default_model_input_names:
                 batch[key] = [b[key] for b in features]
+        
         batch = self.tokenizer.pad(
             batch,
             padding=self.padding,
@@ -303,6 +304,7 @@ class DataCollatorWithPadding:
             return_tensors=self.return_tensors,
             return_attention_mask=self.return_attention_mask,
         )
+        print(batch["input_ids"].shape)
         max_length = batch["input_ids"].shape[1]
         for key in features[0]:
             if key not in self.default_model_input_names:
@@ -317,10 +319,12 @@ class DataCollatorWithPadding:
                         new_values.extend(value.tolist())
                     values = new_values
                 elif key == "attention_mask":
-                    new_values = np.zeros([len(values), max_length, max_length])
+                    new_values = (
+                        np.ones([len(values), 1, max_length, max_length]) * -1e4
+                    )
                     for index, value in enumerate(values):
                         length = len(value)
-                        new_values[index][:length, :length] = value
+                        new_values[index][0, :length, :length] = value
                     values = new_values
                 elif key == "position_ids":
                     for index, value in enumerate(values):
@@ -339,5 +343,4 @@ class DataCollatorWithPadding:
                 elif key != "cls_positions":
                     continue
                 batch[key] = self._convert_to_tensors(values)
-
         return batch

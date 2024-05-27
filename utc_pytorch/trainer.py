@@ -156,7 +156,6 @@ class Trainer:
                 output["labels"] = to_categorical(batch["labels"])
             else:
                 output["labels"] = batch["labels"]
-
             self.test_metrics.update(output["option_logits"], output["labels"])
 
         self.log_info(test_loss, self.test_metrics, "eval")
@@ -196,6 +195,9 @@ class Trainer:
     def log_info(
         self, loss_metric: MeanMetric, f1_metrics: MetricCollection, mode: str = "train"
     ):
+        import pdb
+
+        pdb.set_trace()
         loss = loss_metric.compute()
         metrics = f1_metrics.compute()
         log_metrics = {

@@ -8,8 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 from transformers import PreTrainedTokenizer
-
-from utc_pytorch.utils import MLMTokenizerWrap
+from utils import MLMTokenizerWrap
 
 DEFAULT_MAX_OPTIONS = 10
 
@@ -177,10 +176,11 @@ class Template:
         for value in list(zip(*input_values)):
             inputs.append(dict(zip(input_names, value)))
         input_dict = self.prompt_tokenizer(inputs)
-        
+
         return input_dict
 
     def __call__(self, example: Dict[str, Any]):
+
         return self.encode(example)
 
     @staticmethod

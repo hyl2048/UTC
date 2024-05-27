@@ -29,14 +29,20 @@ from transformers import PretrainedConfig
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
-    BaseModelOutputWithPoolingAndCrossAttentions)
-from transformers.modeling_utils import (PreTrainedModel,
-                                         apply_chunking_to_forward,
-                                         find_pruneable_heads_and_indices,
-                                         prune_linear_layer)
-from transformers.utils import (add_code_sample_docstrings,
-                                add_start_docstrings,
-                                add_start_docstrings_to_model_forward, logging)
+    BaseModelOutputWithPoolingAndCrossAttentions,
+)
+from transformers.modeling_utils import (
+    PreTrainedModel,
+    apply_chunking_to_forward,
+    find_pruneable_heads_and_indices,
+    prune_linear_layer,
+)
+from transformers.utils import (
+    add_code_sample_docstrings,
+    add_start_docstrings,
+    add_start_docstrings_to_model_forward,
+    logging,
+)
 
 
 class ErnieConfig(PretrainedConfig):
@@ -295,7 +301,7 @@ class ErnieEmbeddings(nn.Module):
         inputs_embeds=None,
         past_key_values_length=0,
     ):
-     
+
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
@@ -792,9 +798,7 @@ class ErnieEncoder(nn.Module):
                 all_self_attentions = all_self_attentions + (layer_outputs[1],)
                 if self.config.add_cross_attention:
                     all_cross_attentions = all_cross_attentions + (layer_outputs[2],)
-        import pdb
 
-        pdb.set_trace()
         if output_hidden_states:
             all_hidden_states = all_hidden_states + (hidden_states,)
 
@@ -1018,30 +1022,26 @@ class ErnieModel(ErniePreTrainedModel):
         # ourselves in which case we just need to make it broadcastable to all heads.
         if attention_mask.dim() == 3:
 
-            extended_attention_mask = attention_mask[:, None, :, :]
+            attention_mask = attention_mask[:, None, :, :]
 
         elif attention_mask.dim() == 2:
             # Provided a padding mask of dimensions [batch_size, seq_length]
             # - if the model is a decoder, apply a causal mask in addition to the padding mask
             # - if the model is an encoder, make the mask broadcastable to [batch_size, num_heads, seq_length, seq_length]
-            extended_attention_mask = attention_mask[:, None, None, :]
-            extended_attention_mask = extended_attention_mask.to(
-                dtype=dtype
-            )  # fp16 compatibility
-            extended_attention_mask = (1.0 - extended_attention_mask) * torch.finfo(
-                dtype
-            ).min
-        else:
-            raise ValueError(
-                f"Wrong shape for input_ids (shape {input_shape}) or attention_mask (shape {attention_mask.shape})"
-            )
+            attention_mask = attention_mask[:, None, None, :]
+            attention_mask = attention_mask.to(dtype=dtype)  # fp16 compatibility
+            attention_mask = (1.0 - attention_mask) * torch.finfo(dtype).min
+        # else:
+        #     raise ValueError(
+        #         f"Wrong shape for input_ids (shape {input_shape}) or attention_mask (shape {attention_mask.shape})"
+        #     )
         # Since attention_mask is 1.0 for positions we want to attend and 0.0 for
         # masked positions, this operation will create a tensor which is 0.0 for
         # positions we want to attend and the dtype's smallest value for masked positions.
         # Since we are adding it to the raw scores before the softmax, this is
         # effectively the same as removing these entirely.
 
-        return extended_attention_mask
+        return attention_mask
 
     def forward(
         self,
@@ -1163,7 +1163,6 @@ class ErnieModel(ErniePreTrainedModel):
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
-       
         embedding_output = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,

@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 from torch.nn import BCEWithLogitsLoss
 
-from utc_pytorch.erine import ErnieConfig, ErnieModel, ErniePreTrainedModel
-from utc_pytorch.utils import UTCLoss
+from erine import ErnieConfig, ErnieModel, ErniePreTrainedModel
+from utils import UTCLoss
 
 
 class UTC(ErniePreTrainedModel):
