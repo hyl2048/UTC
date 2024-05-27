@@ -16,10 +16,8 @@ import os
 import numpy as np
 import paddle
 import torch
-from utils import logger
-
-from utc_pytorch.template import UTCTemplate
-from utc_pytorch.utils import DataCollatorWithPadding
+from template import UTCTemplate
+from utils import DataCollatorWithPadding, logger
 
 
 def build_params_map(attention_num=12):
@@ -303,15 +301,14 @@ def validate_model(tokenizer, pt_model, pd_model, model_type="uie", atol: float 
 
 
 if __name__ == "__main__":
+    from model import UTC
     from paddlenlp.transformers import UTC as UTCPaddle
     from paddlenlp.transformers import AutoTokenizer, ErnieTokenizer
 
-    from utc_pytorch.model import UTC
-
     os.environ["OMP_NUM_THREADS"] = str(15)
 
-    input_model = "ERNIE-Pytorch/models/utc-base"
-    output_model = "ERNIE-Pytorch/models/convert/utc_base"
+    input_model = "/root/UTC/ERNIE-Pytorch/models/utc-base"
+    output_model = "/root/UTC/ERNIE-Pytorch/models/convert/utc_base"
     # extract_and_convert(input_model, output_model)
     tokenizer = ErnieTokenizer.from_pretrained(
         pretrained_model_name_or_path=input_model, return_dict=False

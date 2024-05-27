@@ -110,8 +110,12 @@ def main():
     paddle.set_device(training_args.device)
 
     # Load the pretrained language model.
-    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
-    model = UTC.from_pretrained(model_args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(
+        pretrained_model_name_or_path=model_args.model_name_or_path
+    )
+    model = UTC.from_pretrained(
+        pretrained_model_name_or_path=model_args.model_name_or_path
+    )
     # Define template for preprocess and verbalizer for postprocess.
     template = UTCTemplate(tokenizer, training_args.max_seq_length)
 
