@@ -1,8 +1,10 @@
 # coding=utf-8
 import argparse
 import os
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import (Any, Callable, Dict, Iterable, List, NamedTuple, Optional,
+                    Tuple, Union)
 
+import numpy as np
 import torch
 import torch.nn as nn
 from lightning.fabric import Fabric
@@ -15,6 +17,19 @@ from torch.utils.data import DataLoader
 from torchmetrics import F1Score, MeanMetric, Metric, MetricCollection
 from torchmetrics.utilities.data import to_categorical
 from transformers import AdamW, get_linear_schedule_with_warmup
+
+
+class EvalPrediction(NamedTuple):
+    """
+    Evaluation output (always contains labels), to be used to compute metrics.
+
+    Parameters:
+        predictions (`np.ndarray`): Predictions of the model.
+        label_ids (`np.ndarray`): Targets to be matched.
+    """
+
+    predictions: Union[np.ndarray, Tuple[np.ndarray]]
+    label_ids: Union[np.ndarray, Tuple[np.ndarray]]
 
 
 class Trainer:
@@ -143,10 +158,27 @@ class Trainer:
 
             self.global_step += 1
 
+    def compute_metrics(self, eval_tuple: EvalPrediction):
+        # import pdb
+
+        # pdb.set_trace()
+        labels = torch.as_tensor(eval_tuple.label_ids, dtype=torch.int64)
+        preds = torch.as_tensor(eval_tuple.predictions)
+        preds = torch.nn.functional.sigmoid(preds)
+        preds = preds[labels != -100].numpy()
+        labels = labels[labels != -100].numpy()
+        preds = preds > 0.5
+        from sklearn.metrics import f1_score
+
+        micro_f1 = f1_score(y_pred=preds, y_true=labels, average="micro")
+        macro_f1 = f1_score(y_pred=preds, y_true=labels, average="macro")
+
+        return {"micro_f1": micro_f1, "macro_f1": macro_f1}
+
     def eval(self, val_loader: DataLoader):
         torch.set_grad_enabled(False)
         test_loss = self.fabric.to_device(MeanMetric())
-
+        sk_logits, sk_lable = torch.Tensor([]).cuda(), torch.Tensor([]).cuda()
         for i, batch in enumerate(val_loader):
             output = self.forward(batch)
             output = apply_to_collection(output, torch.Tensor, lambda x: x.detach())
@@ -156,8 +188,22 @@ class Trainer:
                 output["labels"] = to_categorical(batch["labels"])
             else:
                 output["labels"] = batch["labels"]
+            sk_logits = torch.cat((sk_logits, output["option_logits"]), 0)
+            sk_lable = torch.cat((sk_lable, output["labels"]), 0)
             self.test_metrics.update(output["option_logits"], output["labels"])
 
+        # import pdb
+
+        # pdb.set_trace()
+        eval_tuple = EvalPrediction(
+            predictions=sk_logits.cpu().numpy(), label_ids=sk_lable.cpu().numpy()
+        )
+        res = self.compute_metrics(eval_tuple)
+        self.fabric.print(
+            "eval_macro_f1:{}, eval_mircro_f1:{}".format(
+                res["macro_f1"], res["micro_f1"]
+            )
+        )
         self.log_info(test_loss, self.test_metrics, "eval")
 
         torch.set_grad_enabled(True)
@@ -195,9 +241,7 @@ class Trainer:
     def log_info(
         self, loss_metric: MeanMetric, f1_metrics: MetricCollection, mode: str = "train"
     ):
-        import pdb
 
-        pdb.set_trace()
         loss = loss_metric.compute()
         metrics = f1_metrics.compute()
         log_metrics = {

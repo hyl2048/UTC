@@ -18,9 +18,12 @@ import paddle
 from paddle.metric import Accuracy
 from paddle.static import InputSpec
 from paddlenlp.datasets import load_dataset
-from paddlenlp.prompt import (PromptModelForSequenceClassification,
-                              PromptTrainer, PromptTuningArguments,
-                              UTCTemplate)
+from paddlenlp.prompt import (
+    PromptModelForSequenceClassification,
+    PromptTrainer,
+    PromptTuningArguments,
+    UTCTemplate,
+)
 from paddlenlp.trainer import PdArgumentParser
 from paddlenlp.transformers import UTC, AutoTokenizer, export_model
 from sklearn.metrics import f1_score
@@ -73,7 +76,7 @@ def main():
         "device": "gpu",
         "logging_steps": 1,
         "save_steps": 500,
-        "eval_steps": 1,
+        "eval_steps": 10,
         "model_name_or_path": "/root/UTC/utc_paddle/models/utc-base",
         "output_dir": "./checkpoint/model_best",
         "dataset_path": "/root/UTC/utc_paddle/data/cail_mul_label_mul_classify",

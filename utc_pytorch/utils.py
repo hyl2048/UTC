@@ -295,7 +295,7 @@ class DataCollatorWithPadding:
         for key in features[0]:
             if key in self.default_model_input_names:
                 batch[key] = [b[key] for b in features]
-        
+
         batch = self.tokenizer.pad(
             batch,
             padding=self.padding,
@@ -304,7 +304,7 @@ class DataCollatorWithPadding:
             return_tensors=self.return_tensors,
             return_attention_mask=self.return_attention_mask,
         )
-        print(batch["input_ids"].shape)
+
         max_length = batch["input_ids"].shape[1]
         for key in features[0]:
             if key not in self.default_model_input_names:
